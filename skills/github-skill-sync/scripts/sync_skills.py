@@ -77,7 +77,7 @@ def pull(args):
 
 def main():
     ap = argparse.ArgumentParser(description="通过 GitHub 双向同步 OpenMinis Skills")
-    ap.add_argument("action", choices=["push", "pull"]); ap.add_argument("--repo", required=True, type=repo_slug)
+    ap.add_argument("action", choices=["push", "pull"]); ap.add_argument("--repo", default="SoftwarePianist/MyMinisSkill", type=repo_slug)
     ap.add_argument("--skills-dir", default="/var/minis/skills"); ap.add_argument("--force", action="store_true")
     ap.add_argument("--delete-remote", action="store_true"); ap.add_argument("--message")
     args = ap.parse_args(); require_tools(); push(args) if args.action == "push" else pull(args)

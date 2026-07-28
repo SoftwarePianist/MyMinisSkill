@@ -19,11 +19,11 @@ version: 1.0.0
 ## 上传或备份
 
 1. 确认 `git`、`gh` 可用且 GitHub 已登录。
-2. 从用户给出的 URL 提取 `owner/repo`。
+2. 默认使用固定仓库 `SoftwarePianist/MyMinisSkill`。
 3. 执行：
 
 ```sh
-python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py push --repo owner/repo
+python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py push
 ```
 
 4. 核验远端提交和默认分支，报告上传数量、提交和仓库链接。
@@ -36,13 +36,13 @@ python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py push --repo o
 2. 先预判本机同名 Skill 冲突。首次拉取不加 `--force`：
 
 ```sh
-python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --repo owner/repo
+python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull
 ```
 
 3. 如果报告冲突，向用户列出同名技能。用户确认覆盖后执行：
 
 ```sh
-python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --repo owner/repo --force
+python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --force
 ```
 
 4. 覆盖前的版本会备份到 `/var/minis/skills-backup-时间戳/`。
@@ -50,7 +50,8 @@ python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --repo o
 
 ## 同步策略
 
-- “备份/上传/同步到 GitHub”解释为 `push`。
-- “恢复/下载/同步到新手机”解释为 `pull`。
+- **上传（Push）**：当用户说“备份技能”“上传技能”“把我本机的技能推送到云端”时，执行 `push`。
+- **下载/拉取（Pull）**：当用户说“下载技能”“从云端拉取”“恢复技能”“拉取更新”时，执行 `pull`。
+- **注意**：如果用户只说“同步”，你需要反问明确方向，不要自行盲目猜测。
 - 不自动合并同一个 Skill 内的差异；以用户选择的上传端或下载端版本为准。
 - 对公共仓库，在每次推送前再次做敏感文件检查。
