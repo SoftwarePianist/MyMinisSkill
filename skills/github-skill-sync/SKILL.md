@@ -19,11 +19,11 @@ version: 1.0.0
 ## 上传或备份
 
 1. 确认 `git`、`gh` 可用且 GitHub 已登录。
-2. 默认使用固定仓库 `SoftwarePianist/MyMinisSkill`。
+2. 从用户给出的 URL 提取 `owner/repo`。
 3. 执行：
 
 ```sh
-python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py push
+python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py push --repo owner/repo
 ```
 
 4. 核验远端提交和默认分支，报告上传数量、提交和仓库链接。
@@ -36,13 +36,13 @@ python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py push
 2. 先预判本机同名 Skill 冲突。首次拉取不加 `--force`：
 
 ```sh
-python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull
+python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --repo owner/repo
 ```
 
 3. 如果报告冲突，向用户列出同名技能。用户确认覆盖后执行：
 
 ```sh
-python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --force
+python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --repo owner/repo --force
 ```
 
 4. 覆盖前的版本会备份到 `/var/minis/skills-backup-时间戳/`。
