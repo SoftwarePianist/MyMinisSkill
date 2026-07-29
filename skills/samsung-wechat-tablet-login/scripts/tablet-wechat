@@ -1,0 +1,139 @@
+#!/bin/sh
+# Standalone Samsung tablet-WeChat login CLI. No Agent required.
+set -u
+
+SKILL_DIR=${SWTL_SKILL_DIR:-/var/minis/skills/samsung-wechat-tablet-login}
+STATE_FILE=${SWTL_STATE_FILE:-/var/minis/workspace/samsung-wechat-tablet-login-state.json}
+LOG_FILE=${SWTL_LOG_FILE:-/var/minis/workspace/samsung-wechat-tablet-login.log}
+LOCK_DIR=${SWTL_LOCK_DIR:-/tmp/samsung-wechat-tablet-login.lock}
+export SWTL_SKILL_DIR="$SKILL_DIR" SWTL_STATE_FILE="$STATE_FILE"
+
+if [ ! -f "$SKILL_DIR/scripts/workflow.sh" ]; then
+  echo "错误：找不到 Skill：$SKILL_DIR" >&2; exit 2
+fi
+. "$SKILL_DIR/scripts/workflow.sh"
+
+C_RESET='\033[0m'; C_OK='\033[32m'; C_WARN='\033[33m'; C_ERR='\033[31m'; C_STEP='\033[36m'
+log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"; }
+msg() { printf '%b%s%b\n' "$1" "$2" "$C_RESET"; log "$2"; }
+ok() { msg "$C_OK" "✓ $*"; }
+warn() { msg "$C_WARN" "! $*"; }
+fail() { msg "$C_ERR" "✗ $*"; return 1; }
+step() { msg "$C_STEP" "→ $*"; }
+
+lock_acquire() {
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "另一个 tablet-wechat 流程正在运行。若确定没有，请执行：tablet-wechat unlock" >&2
+    exit 3
+  fi
+  printf '%s\n' "$$" > "$LOCK_DIR/pid"
+  trap 'rm -rf "$LOCK_DIR"' EXIT INT TERM HUP
+}
+lock_release() { rm -rf "$LOCK_DIR"; trap - EXIT INT TERM HUP; }
+
+usage() { cat "$SKILL_DIR/CLI_HELP.txt"; }
+
+require_a11y() {
+  if ! a11y_ping; then
+    fail "Minis 无障碍服务不可用。请到 设置→辅助功能→已安装的应用→Minis 开启。"
+    return 1
+  fi
+}
+
+show_state_human() {
+  state_init
+  python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); items=[("Shizuku",d.get("shizukuState","unknown")),("微信已停止",d.get("wechatStopped",False)),("HD+ 已应用",d.get("resolutionLowered",False)),("缩放已最小",d.get("zoomMinimized",False)),("微信启动次数",d.get("wechatLaunchAttempts",0)),("等待扫码",d.get("waitingForLogin",False)),("用户已确认登录",d.get("loginConfirmed",False)),("QHD+ 已恢复",d.get("resolutionRestored",False)),("缩放已恢复",d.get("zoomRestored",False)),("流程完成",d.get("completed",False))]; [(print(f"{k}: {chr(26159) if v else chr(21542)}") if isinstance(v,bool) else print(f"{k}: {v}")) for k,v in items]; print(f"状态文件: {p}")' "$STATE_FILE"
+}
+
+cmd_doctor() {
+  echo "设备环境检查"
+  for c in android-a11y-cli android-open android-shizuku-cli python3; do
+    if command -v "$c" >/dev/null 2>&1; then ok "$c 已安装"; else fail "$c 缺失"; fi
+  done
+  if a11y_ping; then ok "Minis 无障碍服务已运行"; else fail "Minis 无障碍服务未运行"; fi
+  model=$(android-device info 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("model","unknown"))' 2>/dev/null || echo unknown)
+  echo "设备型号: $model"
+  state_init; echo "Shizuku: $(shizuku_state)"
+  echo "状态文件: $STATE_FILE"; echo "日志文件: $LOG_FILE"
+}
+
+cmd_prepare() {
+  lock_acquire; require_a11y || exit 1
+  if [ "$(state_get completed)" = true ] || [ "$(state_get loginConfirmed)" = true ]; then state_reset; fi
+  state_init
+  step "1/4 停止微信"
+  if [ "$(state_get wechatStopped)" != true ]; then workflow_stop_wechat || { fail "停止微信失败"; exit 1; }; fi
+  ok "微信已停止"
+  step "2/4 屏幕分辨率切换到 HD+"
+  if [ "$(state_get resolutionLowered)" != true ]; then
+    set_resolution HD+ || { fail "HD+ 设置失败；可运行 tablet-wechat emergency-restore"; exit 1; }
+    state_set resolutionLowered true
+  fi
+  ok "HD+ 已应用"
+  step "3/4 屏幕缩放降到最小"
+  if [ "$(state_get zoomMinimized)" != true ]; then
+    presses=$(minimize_zoom 12) || { fail "屏幕缩放失败"; exit 1; }
+    state_set zoomMinusPresses "$presses"; state_set zoomMinimized true
+  fi
+  ok "屏幕缩放已到最小"
+  step "4/4 连续打开微信两次"
+  workflow_launch_wechat || { fail "微信启动失败"; exit 1; }
+  ok "微信已打开，请扫码登录"
+  lock_release
+}
+
+cmd_restore() {
+  lock_acquire; require_a11y || exit 1
+  state_init
+  workflow_login_confirmed
+  step "恢复 QHD+ 和屏幕缩放"
+  workflow_restore_display || { fail "恢复失败；再次执行 tablet-wechat restore 可续跑"; exit 1; }
+  ok "QHD+ 已恢复，屏幕缩放加号已点击一次"
+  lock_release
+}
+
+cmd_emergency_restore() {
+  lock_acquire; require_a11y || exit 1
+  state_init
+  warn "执行紧急恢复：不检查微信登录状态"
+  if [ "$(state_get resolutionRestored)" != true ]; then
+    set_resolution QHD+ || { fail "QHD+ 恢复失败"; exit 1; }
+    state_set resolutionRestored true
+  fi
+  if [ "$(state_get zoomMinimized)" = true ] && [ "$(state_get zoomRestored)" != true ]; then
+    increase_zoom_once || { fail "缩放加号点击失败"; exit 1; }
+    state_set zoomRestored true
+  fi
+  state_set waitingForLogin false; state_set completed true
+  ok "显示设置已紧急恢复"
+  lock_release
+}
+
+cmd_run() {
+  cmd_prepare || return 1
+  printf '\n请在手机上扫码登录。\n登录成功后回到终端，按回车继续恢复；输入 q 回车可暂不恢复：'
+  IFS= read -r answer || answer=q
+  case "$answer" in q|Q) warn "已停在等待状态。稍后运行 tablet-wechat restore 恢复。";; *) cmd_restore;; esac
+}
+
+cmd_resume() {
+  state_init
+  if [ "$(state_get completed)" = true ]; then ok "流程已完成"; return 0; fi
+  if [ "$(state_get loginConfirmed)" = true ]; then cmd_restore; return; fi
+  if [ "$(state_get waitingForLogin)" = true ]; then
+    echo "当前正在等待扫码。登录后执行：tablet-wechat restore"
+    return 0
+  fi
+  cmd_prepare
+}
+
+cmd=${1:-help}
+case "$cmd" in
+  run) cmd_run;; prepare) cmd_prepare;; restore) cmd_restore;;
+  emergency-restore) cmd_emergency_restore;; resume) cmd_resume;;
+  status) show_state_human;; doctor) cmd_doctor;;
+  reset) state_reset; ok "状态已重置；显示设置未被修改";;
+  unlock) rm -rf "$LOCK_DIR"; ok "运行锁已清除";;
+  log) [ -f "$LOG_FILE" ] && tail -n 80 "$LOG_FILE" || echo "暂无日志";;
+  help|-h|--help) usage;; *) usage; exit 2;;
+esac

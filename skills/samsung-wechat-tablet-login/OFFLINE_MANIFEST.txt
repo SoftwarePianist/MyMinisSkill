@@ -1,0 +1,32 @@
+离线运行所需文件
+
+Skill 目录：
+- SKILL.md
+- CLI_HELP.txt
+- OFFLINE_MANIFEST.txt
+- scripts/tablet-wechat
+- scripts/workflow.sh
+- scripts/device.sh
+- scripts/display.sh
+- scripts/a11y.sh
+- scripts/ui_nodes.py
+
+全局命令：
+- /usr/local/bin/tablet-wechat
+- /usr/local/bin/tablet-wechat-restore
+
+运行时文件：
+- /var/minis/workspace/samsung-wechat-tablet-login-state.json
+- /var/minis/workspace/samsung-wechat-tablet-login.log
+- /var/minis/workspace/tablet-wechat-offline.html
+
+依赖命令：
+- android-a11y-cli
+- android-open
+- android-shizuku-cli（可选）
+- android-device
+- python3
+
+验证：tablet-wechat doctor
+完整流程：tablet-wechat run
+紧急恢复：tablet-wechat emergency-restore

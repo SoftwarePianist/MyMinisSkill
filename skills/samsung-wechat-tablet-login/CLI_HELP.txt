@@ -1,0 +1,23 @@
+三星平板微信登录（无需 Agent）
+
+用法：tablet-wechat <命令>
+
+  run                交互式完整流程：准备→等待扫码回车→恢复
+  prepare            停止微信、设 HD+、缩放最小、打开微信两次
+  restore            已登录后恢复 QHD+，缩放加号一次
+  emergency-restore  取消/中断时强制恢复显示，不要求已登录
+  resume             根据状态继续：等待登录则提示，已确认则恢复
+  status             显示流程状态
+  doctor             检查无障碍、工具、设备和 Shizuku
+  reset              清除流程状态（不会修改显示设置）
+  unlock             清除意外遗留的运行锁
+  log                 查看最近日志
+  help                显示帮助
+
+推荐：直接执行 tablet-wechat run
+
+注意：
+- 离线 CLI 2.3.1 会重试 Display Intent，并等待桌面“设置/微信”图标实际出现后再点击，避免终端抢焦点导致 TAP_FAIL。
+- 执行前请确保手机已解锁，并已开启 Minis 无障碍服务。
+- 登录完成后应运行 tablet-wechat restore 恢复显示设置。
+- 如果流程中断且显示仍为 HD+，运行 tablet-wechat emergency-restore。
