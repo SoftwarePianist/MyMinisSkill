@@ -65,14 +65,22 @@ def pull(args):
         if not source.is_dir(): raise SystemExit("仓库中没有 skills/ 目录。")
         incoming = [p for p in source.iterdir() if p.is_dir()]
         conflicts = [p.name for p in incoming if (dest / p.name).exists()]
+        new = [p for p in incoming if not (dest / p.name).exists()]
+        # 新技能始终直接安装；仅当存在同名覆盖冲突且未确认时才拦截
+        for p in new: copy_tree(p, dest / p.name)
+        if new: print(f"已安装 {len(new)} 个新技能：" + ", ".join(p.name for p in new))
         if conflicts and not args.force:
-            raise SystemExit("以下技能已存在：" + ", ".join(conflicts) + "。确认覆盖时加 --force。")
+            if new: print("以下同名技能未更新：" + ", ".join(conflicts) + "。确认覆盖时加 --force。")
+            else: raise SystemExit("以下技能已存在：" + ", ".join(conflicts) + "。确认覆盖时加 --force。")
+            return
         backup = None
         if conflicts:
             backup = dest.parent / ("skills-backup-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")); backup.mkdir()
             for name in conflicts: shutil.copytree(dest / name, backup / name)
-        for p in incoming: copy_tree(p, dest / p.name)
-        print(f"已同步 {len(incoming)} 个技能到 {dest}。")
+            for p in incoming:
+                if p.name in conflicts: copy_tree(p, dest / p.name)
+            print(f"已覆盖更新 {len(conflicts)} 个技能：" + ", ".join(conflicts))
+        if not new and not conflicts: print("本机已是最新，无新技能。")
         if backup: print(f"被覆盖技能已备份到：{backup}")
 
 def main():
