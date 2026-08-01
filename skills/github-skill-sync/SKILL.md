@@ -1,7 +1,7 @@
 ---
 name: github-skill-sync
 description: 通过用户个人 GitHub 仓库备份、上传、下载、恢复和双向同步 OpenMinis 的全部 Skills。用户说“连接 GitHub 同步技能”“备份本机 skills”“把 skills 上传到仓库”“换手机恢复技能”“从相同 GitHub 账号同步所有技能到新手机”时使用。
-version: 1.1.1
+version: 1.2.0
 ---
 # GitHub Skill Sync
 
@@ -13,7 +13,9 @@ version: 1.1.1
 - 如果尚未登录，安装 `github-cli` 后让用户在交互终端运行 `gh auth login --hostname github.com --git-protocol https --web`。
 - 推送前检查仓库可见性。公开仓库也不得上传 `.env`、密钥、凭据、Token、日志、缓存或证书。
 - 默认不删除仓库中仅远端存在的技能；只有用户明确要求镜像删除时才使用 `--delete-remote`。
-- 拉取时，远端独有的新技能会直接安装；同名技能不直接覆盖，说明冲突并取得用户确认后才使用 `--force` 覆盖（覆盖前自动备份旧版本）。
+- 拉取时，远端独有的新技能会直接安装；同名技能分两种情况：
+  - **版本不同**：提示有新版本，加 `--upgrade` 仅升级这些技能（覆盖前自动备份），或加 `--force` 强制覆盖所有同名技能。
+  - **版本相同或无法判断**：提示已存在，加 `--force` 强制覆盖。
 - 跨手机同步的是 Skill 文件，不包括 GitHub 登录状态、环境变量、API Key、系统权限和已安装依赖；新手机需另行配置这些项目。
 
 ## 上传或备份
@@ -33,15 +35,17 @@ python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py push
 ## 新手机恢复
 
 1. 在新手机安装并登录 GitHub CLI，登录同一个有仓库访问权的账号。
-2. 首次拉取不加 `--force`——新技能直接安装，同名技能会跳过并提示：
+2. 首次拉取不加参数——新技能直接安装；同名技能若版本不同会提示升级，版本相同会提示已存在：
 
 ```sh
 python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull
 ```
 
-3. 如果报告同名冲突，向用户列出这些技能。用户确认覆盖后执行：
+3. 若报告有新版本，加 `--upgrade` 仅升级这些技能；若报告同名同版本冲突，加 `--force` 强制覆盖：
 
 ```sh
+python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --upgrade
+# 或
 python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --force
 ```
 
@@ -55,13 +59,3 @@ python3 /var/minis/skills/github-skill-sync/scripts/sync_skills.py pull --force
 - **注意**：如果用户只说“同步”，你需要反问明确方向，不要自行盲目猜测。
 - 不自动合并同一个 Skill 内的差异；以用户选择的上传端或下载端版本为准。
 - 对公共仓库，在每次推送前再次做敏感文件检查。
-
-## 汇报规则（必须遵守）
-
-同步完成后向用户汇报时，**不能只报技能数量**，必须区分三类变化并明确列出：
-
-1. **新安装**：本地没有、这次拉下来的技能（列名称）
-2. **版本升级**：同名但版本号变化的技能（列 `技能名 v旧 → v新`）——拉取前记录本地各技能 `version:`，拉取后逐个对比，有差异必须报
-3. **无变化**：版本不变的技能（一句带过即可，不用逐个列）
-
-报"没有新技能"之前，先确认连版本升级也没有。
